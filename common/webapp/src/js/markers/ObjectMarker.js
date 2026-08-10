@@ -106,6 +106,33 @@ export class ObjectMarker extends Marker {
 
 }
 
+/**
+ * Keys that do not on their own mean the user did something else: bare modifiers,
+ * lock-keys, and the keys that address the operating-system or the browser rather
+ * than the map. Closing a popup on these makes it impossible to reach a popup with
+ * a screenshot shortcut such as Win+Shift+S, because pressing Win already closed it.
+ * @type {Set<string>}
+ */
+const NON_INTERACTION_KEYS = new Set([
+    "Shift", "Control", "Alt", "AltGraph", "Meta", "OS",
+    "CapsLock", "NumLock", "ScrollLock", "Fn", "FnLock",
+    "Super", "Hyper", "Symbol", "SymbolLock",
+    "ContextMenu", "PrintScreen"
+]);
+
+/**
+ * @param evt {KeyboardEvent}
+ * @returns {boolean} whether this key-press counts as an interaction that should close an open popup
+ */
+const isInteractionKey = evt => {
+    if (NON_INTERACTION_KEYS.has(evt.key)) return false;
+
+    // no key-binding uses ctrl or meta (see controls/KeyCombination.js and the
+    // KEYS of the keyboard-controls), so such a press is meant for the browser
+    // or the operating-system. Alt is a real binding and still counts.
+    return !evt.ctrlKey && !evt.metaKey;
+};
+
 export class LabelPopup extends CSS2DObject {
 
     /**
@@ -129,6 +156,7 @@ export class LabelPopup extends CSS2DObject {
         if (autoClose) {
             let removeHandler = evt => {
                 if (evt.composedPath().includes(this.element)) return;
+                if (evt.type === "keydown" && !isInteractionKey(evt)) return;
 
                 inAnimation.cancel();
                 this.close();
