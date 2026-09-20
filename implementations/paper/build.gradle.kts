@@ -9,8 +9,9 @@ val supportedMinecraftVersions = listOf(
     "26.2"
 )
 
-val apiVersion = "26.1.1" // paper-version but without minor
-val paperVersion = "26.1.1.build.29-alpha"
+val paper263 = providers.gradleProperty("paper26.3").isPresent
+val apiVersion = if (paper263) "26.3" else "26.1.1"
+val paperVersion = if (paper263) "26.3.build.26-alpha" else "26.1.1.build.29-alpha"
 
 dependencies {
     api ( project( ":common" ) ) {
@@ -79,5 +80,17 @@ hangarPublish {
         platforms.paper {
             platformVersions = supportedMinecraftVersions
         }
+    }
+}
+
+tasks.register("verifyPaperApi") {
+    doLast {
+        val api = configurations.compileClasspath.get().resolvedConfiguration.resolvedArtifacts.single {
+            it.moduleVersion.id.group == "io.papermc.paper" && it.name == "paper-api"
+        }
+        check(api.moduleVersion.id.version == paperVersion) {
+            "Expected paper-api:$paperVersion, resolved ${api.moduleVersion.id}"
+        }
+        logger.lifecycle("paper-api:jar:${api.moduleVersion.id.version}")
     }
 }
