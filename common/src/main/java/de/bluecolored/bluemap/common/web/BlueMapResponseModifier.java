@@ -33,15 +33,19 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
 
+import java.util.Map;
+
 @Getter @Setter
 public class BlueMapResponseModifier implements HttpRequestHandler {
 
     private @NonNull HttpRequestHandler delegate;
     private @NonNull String serverName;
+    private @NonNull Map<String, String> additionalHeaders;
 
-    public BlueMapResponseModifier(HttpRequestHandler delegate) {
+    public BlueMapResponseModifier(HttpRequestHandler delegate, Map<String, String> additionalHeaders) {
         this.delegate = delegate;
         this.serverName = "BlueMap/" + BlueMap.VERSION;
+        this.additionalHeaders = additionalHeaders;
     }
 
     @Override
@@ -53,9 +57,15 @@ public class BlueMapResponseModifier implements HttpRequestHandler {
             response.setBody(status.getCode() + " - " + status.getMessage() + "\n" + this.serverName);
         }
 
-        response.addHeader("Server", this.serverName);
+        response.setHeader("Server", this.serverName);
+
+        additionalHeaders.forEach(response::setHeaderIfAbsent);
 
         return response;
     }
 
+    @Override
+    public void close() {
+        delegate.close();
+    }
 }

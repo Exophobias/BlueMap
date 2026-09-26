@@ -5,7 +5,8 @@ plugins {
 
 val supportedMinecraftVersions = listOf(
     "26.1", "26.1.1", "26.1.2",
-    "26.2"
+    "26.2",
+    "26.3"
 )
 
 val apiVersion = "1.16"
@@ -50,6 +51,12 @@ tasks.shadowJar {
 
     // bstats
     relocate ("org.bstats", "de.bluecolored.shadow.bstats")
+
+    // not correctly relocated and not needed -> exclude
+    exclude(
+        "META-INF/services/net.kyori.adventure*",
+        "META-INF/services/org.spongepowered.configurate*"
+    )
 
 }
 

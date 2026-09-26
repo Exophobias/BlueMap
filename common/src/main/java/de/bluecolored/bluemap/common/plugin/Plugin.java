@@ -145,6 +145,7 @@ public class Plugin implements ServerEventListener {
                         .configRoot(serverInterface.getConfigFolder())
                         .packsFolder(packsFolder)
                         .modsFolder(serverInterface.getModsFolder().orElse(null))
+                        .defaultBlockStates(serverInterface.getDefaultBlockstates())
                         .useMetricsConfig(serverInterface.isMetricsEnabled() == Tristate.UNDEFINED)
                         .autoConfigWorlds(serverInterface.getLoadedServerWorlds())
                         .build();
@@ -241,7 +242,7 @@ public class Plugin implements ServerEventListener {
                         webRequestHandler.register(
                                 "maps/" + Pattern.quote(id) + "/(.*)",
                                 "$1",
-                                new BlueMapResponseModifier(mapRequestHandler)
+                                mapRequestHandler
                         );
                     }
 
@@ -260,7 +261,7 @@ public class Plugin implements ServerEventListener {
                         webServer = new HttpServer(
                                 "BlueMap-Webserver",
                                 new LoggingRequestHandler(
-                                        webRequestHandler,
+                                        new BlueMapResponseModifier(webRequestHandler, webserverConfig.getAdditionalHeaders()),
                                         webserverConfig.getLog().getFormat(),
                                         webLogger
                                 )
@@ -462,6 +463,13 @@ public class Plugin implements ServerEventListener {
                 //save
                 save();
 
+                // specifically save empty (disabled) players to the loaded maps
+                if (blueMap != null) {
+                    for (BmMap map : blueMap.getMaps().values()) {
+                        map.savePlayerState();
+                    }
+                }
+
                 // stop render-manager
                 if (renderManager != null){
                     if (renderManager.getCurrentRenderTask() != null) {
@@ -483,22 +491,29 @@ public class Plugin implements ServerEventListener {
                 }
 
                 // stop webserver
-                if (webServer != null && !keepWebserver) {
-                    try {
-                        webServer.close();
-                    } catch (IOException ex) {
-                        Logger.global.logError("Failed to close the webserver!", ex);
+                if (!keepWebserver) {
+                    if (webServer != null) {
+                        try {
+                            webServer.close();
+                        } catch (IOException ex) {
+                            Logger.global.logError("Failed to close the webserver!", ex);
+                        }
+                        webServer = null;
                     }
-                    webServer = null;
-                }
 
-                if (webLogger != null && !keepWebserver) {
-                    try {
-                        webLogger.close();
-                    } catch (Exception ex) {
-                        Logger.global.logError("Failed to close the webserver-logger!", ex);
+                    if (webRequestHandler != null) {
+                        webRequestHandler.close();
+                        webRequestHandler = null;
                     }
-                    webLogger = null;
+
+                    if (webLogger != null) {
+                        try {
+                            webLogger.close();
+                        } catch (Exception ex) {
+                            Logger.global.logError("Failed to close the webserver-logger!", ex);
+                        }
+                        webLogger = null;
+                    }
                 }
 
                 //close bluemap
@@ -597,12 +612,11 @@ public class Plugin implements ServerEventListener {
         // a bit of trickery to allow the RenderTaskAdapter to use itself recursively through BlueNBT's default serialization
         RenderTaskAdapter renderTaskAdapter = new RenderTaskAdapter();
         blueNBT.register(TypeToken.of(RenderTask.class), renderTaskAdapter);
-        renderTaskAdapter.init(blueNBT);
-
         blueNBT.register(
                 new TypeToken<>() {},
                 new LenientListAdapter<>(blueNBT, TypeToken.of(RenderTask.class), e -> Logger.global.logDebug("Failed to load render-task: " + e))
         );
+        renderTaskAdapter.init(blueNBT);
 
         return blueNBT;
     }
@@ -644,14 +658,14 @@ public class Plugin implements ServerEventListener {
         if (blueMap == null) return;
 
         try {
-            MapUpdateService watcher = new MapUpdateService(
-                    renderManager,
-                    map,
-                    pluginState.getMapState(map).getLastFullUpdate(),
-                    blueMap.getConfig().getCoreConfig().getFullUpdateInterval(),
-                    blueMap.getConfig().getCoreConfig().getUpdateCooldown(),
-                    false
-            );
+            MapUpdateService watcher = MapUpdateService.builder()
+                    .renderManager(renderManager)
+                    .map(map)
+                    .lastFullUpdate(pluginState.getMapState(map).getLastFullUpdate())
+                    .fullUpdateInterval(blueMap.getConfig().getCoreConfig().getFullUpdateInterval())
+                    .regionUpdateCooldown(blueMap.getConfig().getCoreConfig().getUpdateCooldown())
+                    .onFullUpdate(instant -> pluginState.getMapState(map).setLastFullUpdate(instant))
+                    .build();
             watcher.start();
             mapUpdateServices.put(map.getId(), watcher);
         } catch (IOException ex) {

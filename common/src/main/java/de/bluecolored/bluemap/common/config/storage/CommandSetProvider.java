@@ -22,16 +22,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package de.bluecolored.bluemap.common.web.http;
+package de.bluecolored.bluemap.common.config.storage;
 
-import java.io.Closeable;
+import de.bluecolored.bluemap.core.storage.sql.Database;
+import de.bluecolored.bluemap.core.storage.sql.commandset.CommandSet;
 
 @FunctionalInterface
-public interface HttpRequestHandler extends Closeable {
-
-    HttpResponse handle(HttpRequest request);
-
-    @Override
-    default void close() {}
-
+public
+interface CommandSetProvider {
+    CommandSet createCommandSet(Database database, String tablePrefix);
 }

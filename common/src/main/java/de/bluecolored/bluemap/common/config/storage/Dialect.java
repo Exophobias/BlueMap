@@ -24,8 +24,6 @@
  */
 package de.bluecolored.bluemap.common.config.storage;
 
-import de.bluecolored.bluemap.core.storage.sql.Database;
-import de.bluecolored.bluemap.core.storage.sql.commandset.CommandSet;
 import de.bluecolored.bluemap.core.storage.sql.commandset.MySQLCommandSet;
 import de.bluecolored.bluemap.core.storage.sql.commandset.PostgreSQLCommandSet;
 import de.bluecolored.bluemap.core.storage.sql.commandset.SqliteCommandSet;
@@ -34,15 +32,24 @@ import de.bluecolored.bluemap.core.util.Keyed;
 import de.bluecolored.bluemap.core.util.Registry;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.Delegate;
 
-import java.util.function.Function;
+import java.util.Collection;
+import java.util.List;
 
-public interface Dialect extends Keyed {
+public interface Dialect extends Keyed, CommandSetProvider {
 
-    Dialect MYSQL = new Impl(Key.bluemap("mysql"), "jdbc:mysql:", MySQLCommandSet::new);
-    Dialect MARIADB = new Impl(Key.bluemap("mariadb"), "jdbc:mariadb:", MySQLCommandSet::new);
-    Dialect POSTGRESQL = new Impl(Key.bluemap("postgresql"), "jdbc:postgresql:", PostgreSQLCommandSet::new);
-    Dialect SQLITE = new Impl(Key.bluemap("sqlite"), "jdbc:sqlite:", SqliteCommandSet::new);
+    Dialect MYSQL = new Impl(Key.bluemap("mysql"), "jdbc:mysql:", MySQLCommandSet::new, List.of());
+    Dialect MARIADB = new Impl(Key.bluemap("mariadb"), "jdbc:mariadb:", MySQLCommandSet::new, List.of());
+    Dialect POSTGRESQL = new Impl(Key.bluemap("postgresql"), "jdbc:postgresql:", PostgreSQLCommandSet::new, List.of(
+            "SET synchronous_commit = off"
+    ));
+    Dialect SQLITE = new Impl(Key.bluemap("sqlite"), "jdbc:sqlite:", SqliteCommandSet::new, List.of(
+            "PRAGMA journal_mode = WAL",
+            "PRAGMA synchronous = NORMAL",
+            "PRAGMA busy_timeout = 30000",
+            "PRAGMA foreign_keys = ON"
+    ));
 
     Registry<Dialect> REGISTRY = new Registry<>(
             MYSQL,
@@ -53,7 +60,7 @@ public interface Dialect extends Keyed {
 
     boolean supports(String connectionUrl);
 
-    CommandSet createCommandSet(Database database);
+    Collection<String> getConnectionInitSql();
 
     @RequiredArgsConstructor
     class Impl implements Dialect {
@@ -61,16 +68,12 @@ public interface Dialect extends Keyed {
         @Getter private final Key key;
         private final String protocol;
 
-        private final Function<Database, CommandSet> commandSetProvider;
+        @Delegate private final CommandSetProvider commandSetProvider;
+        @Getter private final Collection<String> connectionInitSql;
 
         @Override
         public boolean supports(String connectionUrl) {
             return connectionUrl.startsWith(protocol);
-        }
-
-        @Override
-        public CommandSet createCommandSet(Database database) {
-            return commandSetProvider.apply(database);
         }
 
     }

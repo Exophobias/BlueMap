@@ -1,0 +1,69 @@
+version: 2
+
+updates:
+
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+
+      # gradle
+      - dependency-name: "gradle-wrapper"
+
+      # libraries
+      - dependency-name: "net.kyori:adventure-*"
+      - dependency-name: "io.airlift:aircompressor"
+      - dependency-name: "de.bluecolored:bluecommands-*"
+      - dependency-name: "de.bluecolored:bluenbt"
+      - dependency-name: "com.mojang:brigadier"
+      - dependency-name: "org.bstats:bstats-*"
+      - dependency-name: "com.github.ben-manes.caffeine:caffeine"
+      - dependency-name: "commons-cli:commons-cli"
+      - dependency-name: "org.apache.commons:commons-dbcp2"
+      - dependency-name: "org.spongepowered:configurate-*"
+      - dependency-name: "me.lucko:fabric-permissions-api"
+      - dependency-name: "com.flowpowered:flow-math"
+      - dependency-name: "com.google.code.gson:gson"
+      - dependency-name: "org.jetbrains:annotations"
+      - dependency-name: "org.junit*"
+      - dependency-name: "org.projectlombok:lombok"
+
+      # plugins
+      - dependency-name: "io.github.themrmilchmann.curseforge-publish"
+      - dependency-name: "net.minecraftforge.gradle"
+      - dependency-name: "io.papermc.hangar-publish-plugin"
+      - dependency-name: "net.minecraftforge.jarjar"
+      - dependency-name: "net.fabricmc.fabric-loom"
+      - dependency-name: "com.modrinth.minotaur"
+      - dependency-name: "com.github.node-gradle.node"
+      - dependency-name: "net.neoforged.moddev"
+      - dependency-name: "com.gradleup.shadow"
+      - dependency-name: "org.spongepowered.gradle.plugin"
+      - dependency-name: "org.spongepowered.gradle.ore"
+      - dependency-name: "com.diffplug.spotless"
+
+    ignore:
+      - dependency-name: "net.kyori:adventure-*"
+        versions: [">=4.27.0"] # depends on paper and sponge
+      - dependency-name: "com.mojang:brigadier"
+        versions: [">=1.4.0"] # depends on paper, fabric, forge, neoforge
+      - dependency-name: "org.spongepowered:configurate-*"
+        versions: [">=4.3.0"] # depends on sponge
+      - dependency-name: "com.flowpowered:flow-math"
+        update-types: ["version-update:semver-major"] # no breaking api change
+      - dependency-name: "com.google.code.gson:gson"
+        versions: [">=2.9.0"] # depends on all implementations
+
+  - package-ecosystem: "npm"
+    directory: "/common/webapp"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

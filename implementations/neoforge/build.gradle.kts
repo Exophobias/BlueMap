@@ -7,13 +7,14 @@ plugins {
 
 val supportedMinecraftVersions = listOf(
     "26.1", "26.1.1", "26.1.2",
-    "26.2"
+    "26.2",
+    "26.3"
 )
 
 val minecraftVersion = supportedMinecraftVersions.first()
 val neoVersion = "26.1.0.0-alpha.15+pre-3"
 
-val shadowInclude: Configuration by configurations.creating
+val shadowInclude: Configuration = configurations.create("shadowInclude")
 configurations.api.get().extendsFrom(shadowInclude)
 
 neoForge {
@@ -89,7 +90,9 @@ val mergeShadowAndJarJar = tasks.register<Jar>("mergeShadowAndJarJar") {
         zipTree( tasks.shadowJar.map { it.outputs.files.singleFile } ),
         tasks.jarJar.map { it.outputs.files }
     ).exclude(
-        "META-INF/services/net.kyori.adventure*" // not correctly relocated and not needed -> exclude
+        // not correctly relocated and not needed -> exclude
+        "META-INF/services/net.kyori.adventure*",
+        "META-INF/services/org.spongepowered.configurate*"
     )
     archiveFileName = "${project.name}-${project.version}-merged.jar"
 }

@@ -104,14 +104,14 @@ public class BlueMapCLI {
         if (watch) {
             for (BmMap map : maps.values()) {
                 try {
-                    MapUpdateService watcher = new MapUpdateService(
-                            renderManager,
-                            map,
-                            Instant.now(),
-                            blueMap.getConfig().getCoreConfig().getFullUpdateInterval(),
-                            blueMap.getConfig().getCoreConfig().getUpdateCooldown(),
-                            true
-                    );
+                    MapUpdateService watcher = MapUpdateService.builder()
+                            .renderManager(renderManager)
+                            .map(map)
+                            .lastFullUpdate(Instant.now())
+                            .fullUpdateInterval(blueMap.getConfig().getCoreConfig().getFullUpdateInterval())
+                            .regionUpdateCooldown(blueMap.getConfig().getCoreConfig().getUpdateCooldown())
+                            .verbose(true)
+                            .build();
                     watcher.start();
                     mapUpdateServices.add(watcher);
                 } catch (IOException ex) {
@@ -311,7 +311,7 @@ public class BlueMapCLI {
             ));
         }
 
-        HttpRequestHandler handler = new BlueMapResponseModifier(routingRequestHandler);
+        HttpRequestHandler handler = new BlueMapResponseModifier(routingRequestHandler, config.getAdditionalHeaders());
         handler = new LoggingRequestHandler(
                 handler,
                 config.getLog().getFormat(),
@@ -427,12 +427,12 @@ public class BlueMapCLI {
                 if (cmd.hasOption("f")) force = TileUpdateStrategy.FORCE_ALL;
                 else if (cmd.hasOption("e")) force = TileUpdateStrategy.FORCE_EDGE;
                 boolean generateWebappFiles = cmd.hasOption("g");
-                String mapsToRender = cmd.getOptionValue("m", null);
+                String mapsToRender = cmd.getOptionValue("m", (String) null);
                 cli.renderMaps(blueMap, watch, force, generateWebappFiles, mapsToRender);
             } else {
                 if (cmd.hasOption("markers")) {
                     noActions = false;
-                    String mapsToUpdate = cmd.getOptionValue("m", null);
+                    String mapsToUpdate = cmd.getOptionValue("m", (String) null);
                     cli.updateMarkers(blueMap, mapsToUpdate);
                 }
                 if (cmd.hasOption("g")) {

@@ -32,16 +32,14 @@ import de.bluecolored.bluemap.core.logger.Logger;
 import de.bluecolored.bluemap.core.resources.pack.datapack.DataPack;
 import de.bluecolored.bluemap.core.util.FileHelper;
 import de.bluecolored.bluemap.core.util.Key;
+import de.bluecolored.bluemap.core.world.BlockState;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Stream;
@@ -72,6 +70,7 @@ public class BlueMapConfigManager implements BlueMapConfiguration {
     private final Path packsFolder;
     private final @Nullable String minecraftVersion;
     private final @Nullable Path modsFolder;
+    private final @Nullable Map<Key, BlockState> defaultBlockStates;
 
     @Builder
     private BlueMapConfigManager(
@@ -84,7 +83,8 @@ public class BlueMapConfigManager implements BlueMapConfiguration {
             @Nullable Boolean useMetricsConfig,
             @Nullable Boolean isCli,
             @Nullable Path packsFolder,
-            @Nullable Path modsFolder
+            @Nullable Path modsFolder,
+            @Nullable Map<Key, BlockState> defaultBlockStates
     ) throws ConfigurationException {
         // set defaults
         if (defaultDataFolder == null) defaultDataFolder = Path.of("bluemap");
@@ -106,11 +106,13 @@ public class BlueMapConfigManager implements BlueMapConfiguration {
         this.packsFolder = packsFolder;
         this.minecraftVersion = minecraftVersion;
         this.modsFolder = modsFolder;
+        this.defaultBlockStates = defaultBlockStates;
     }
 
     private CoreConfig loadCoreConfig(Path defaultDataFolder, boolean useMetricsConfig, boolean isCli) throws ConfigurationException {
         Path configFile = configManager.resolveConfigFile(CORE_CONFIG_NAME);
         Path configFolder = configFile.getParent();
+        String separator = getSeparator(defaultDataFolder.getFileSystem());
 
         if (!Files.exists(configFile)) {
             try {
@@ -128,7 +130,7 @@ public class BlueMapConfigManager implements BlueMapConfiguration {
                                 .setVariable("default-thread-priority", String.valueOf(Thread.NORM_PRIORITY))
                                 .setConditional("update-interval-u-flag", isCli)
                                 .setVariable("logfile", formatPath(defaultDataFolder.resolve("logs").resolve("debug.log")))
-                                .setVariable("logfile-with-time", formatPath(defaultDataFolder.resolve("logs").resolve("debug_%1$tF_%1$tT.log")))
+                                .setVariable("logfile-with-time", formatPath(defaultDataFolder.resolve("logs")) + separator + "debug_%1$tF_%<tH-%<tM-%<tS.log")
                                 .build(),
                         StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING
                 );
@@ -158,6 +160,7 @@ public class BlueMapConfigManager implements BlueMapConfiguration {
     private WebserverConfig loadWebserverConfig(Path defaultWebroot, Path dataRoot) throws ConfigurationException {
         Path configFile = configManager.resolveConfigFile(WEBSERVER_CONFIG_NAME);
         Path configFolder = configFile.getParent();
+        String separator = getSeparator(defaultWebroot.getFileSystem());
 
         if (!Files.exists(configFile)) {
             try {
@@ -167,7 +170,7 @@ public class BlueMapConfigManager implements BlueMapConfiguration {
                         configManager.loadConfigTemplate(WEBSERVER_CONFIG_NAME)
                                 .setVariable("webroot", formatPath(defaultWebroot))
                                 .setVariable("logfile", formatPath(dataRoot.resolve("logs").resolve("webserver.log")))
-                                .setVariable("logfile-with-time", formatPath(dataRoot.resolve("logs").resolve("webserver_%1$tF_%1$tT.log")))
+                                .setVariable("logfile-with-time", formatPath(dataRoot.resolve("logs")) + separator + "webserver_%1$tF_%<tH-%<tM-%<tS.log")
                                 .build(),
                         StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING
                 );
@@ -456,6 +459,17 @@ public class BlueMapConfigManager implements BlueMapConfiguration {
         formatted = formatted.replace("\\", "\\\\");
 
         return formatted;
+    }
+
+    public static String getSeparator(FileSystem fs) {
+        String separator = fs.getSeparator();
+        if (separator.equals("/")) return separator;
+
+        try {
+            if (fs.getPath("separator", "check").equals(fs.getPath("separator/check"))) return "/";
+        } catch (InvalidPathException ignore) {}
+
+        return separator;
     }
 
 }

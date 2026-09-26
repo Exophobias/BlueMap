@@ -77,8 +77,14 @@ public class VersionManifest {
                 Reader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
         ) {
             instance = GSON.fromJson(reader, VersionManifest.class);
+            instance.validate();
         }
         return instance;
+    }
+
+    private void validate() throws InvalidVersionException {
+        latest.validate();
+        for (Version version : versions) version.validate();
     }
 
     /**
@@ -105,6 +111,11 @@ public class VersionManifest {
     public static class Latest {
         private String release;
         private String snapshot;
+
+        private void validate() throws InvalidVersionException {
+            validateId(release);
+            validateId(snapshot);
+        }
     }
 
     @Getter
@@ -130,6 +141,11 @@ public class VersionManifest {
             }
 
             return detail;
+        }
+
+        private void validate() throws InvalidVersionException {
+            if (!url.startsWith(DOMAIN)) throw new InvalidVersionException("Invalid version manifest URL: " + url);
+            validateId(id);
         }
 
         @Override
@@ -174,6 +190,16 @@ public class VersionManifest {
         } catch (URISyntaxException e) {
             throw new IOException(e);
         }
+    }
+
+    private static class InvalidVersionException extends RuntimeException {
+        private InvalidVersionException(String message) {
+            super(message);
+        }
+    }
+
+    private static void validateId(String id) {
+        if (id.contains("/") || id.contains("..") || id.contains("\\")) throw new InvalidVersionException("Invalid version manifest ID: " + id);
     }
 
 }
