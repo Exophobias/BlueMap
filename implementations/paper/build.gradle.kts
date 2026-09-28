@@ -65,15 +65,18 @@ tasks.shadowJar {
 }
 
 tasks.processResources {
+    val resourceProperties = mapOf(
+        "version" to project.version.toString(),
+        "api_version" to apiVersion,
+        "flow_math_version" to libs.flow.math.get().version!!
+    )
+    inputs.properties(resourceProperties)
+
     from("src/main/resources") {
         include("plugin.yml")
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
-        expand (
-            "version" to project.version,
-            "api_version" to apiVersion,
-            "flow_math_version" to libs.flow.math.get().version!!
-        )
+        expand(resourceProperties)
     }
 }
 

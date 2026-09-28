@@ -31,14 +31,17 @@ tasks.register("zipResourceExtensions", type = Zip::class) {
 tasks.processResources {
     dependsOn("zipResourceExtensions")
 
+    val resourceProperties = mapOf(
+        "version" to project.version.toString(),
+        "gitHash" to gitHash() + if (gitClean()) "" else " (dirty)",
+    )
+    inputs.properties(resourceProperties)
+
     from("src/main/resources") {
         include("de/bluecolored/bluemap/version.json")
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
-        expand (
-            "version" to project.version,
-            "gitHash" to gitHash() + if (gitClean()) "" else " (dirty)",
-        )
+        expand(resourceProperties)
     }
 }
 
