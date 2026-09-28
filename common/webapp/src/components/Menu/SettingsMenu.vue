@@ -30,6 +30,7 @@
 
     <Group :title="$t('mapControls.title')">
       <SwitchButton :on="appState.controls.showZoomButtons" @action="appState.controls.showZoomButtons = !appState.controls.showZoomButtons; $bluemap.saveUserSettings()">{{ $t("mapControls.showZoomButtons") }}</SwitchButton>
+      <SwitchButton :on="appState.controls.zoomToCursor" @action="appState.controls.zoomToCursor = !appState.controls.zoomToCursor; $bluemap.updateControlsSettings(); $bluemap.saveUserSettings()">{{ $t("mapControls.zoomToCursor", "Zoom toward cursor") }}</SwitchButton>
     </Group>
 
     <Group :title="$t('freeFlightControls.title')">

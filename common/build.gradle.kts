@@ -23,8 +23,18 @@ node {
     npmInstallCommand = "ci"
 }
 
-tasks.register("buildWebapp", type = NpmTask::class) {
+tasks.register("testWebapp", type = NpmTask::class) {
     dependsOn ("npmInstall")
+    args = listOf("test")
+
+    inputs.dir("webapp/src/")
+    inputs.dir("webapp/tests/")
+    inputs.file("webapp/package.json")
+    inputs.file("webapp/package-lock.json")
+}
+
+tasks.register("buildWebapp", type = NpmTask::class) {
+    dependsOn ("testWebapp")
     args = listOf("run", "build")
 
     inputs.dir("webapp/")

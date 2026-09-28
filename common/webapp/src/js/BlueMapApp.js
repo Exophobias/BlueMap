@@ -99,6 +99,7 @@ export class BlueMapApp {
                 state: "perspective",
                 mouseSensitivity: 1,
                 showZoomButtons: true,
+                zoomToCursor: true,
                 invertMouse: false,
                 pauseTileLoading: false
             },
@@ -495,6 +496,7 @@ export class BlueMapApp {
     }
 
     updateControlsSettings() {
+        this.mapControls.mouseZoom.zoomToCursor = this.appState.controls.zoomToCursor;
         let mouseInvert = this.appState.controls.invertMouse ? -1 : 1;
 
         this.freeFlightControls.mouseRotate.speedCapture = -1.5 * this.appState.controls.mouseSensitivity;
@@ -708,6 +710,8 @@ export class BlueMapApp {
         this.appState.controls.invertMouse = this.loadUserSetting("invertMouse", this.appState.controls.invertMouse);
         this.appState.controls.pauseTileLoading = this.loadUserSetting("pauseTileLoading", this.appState.controls.pauseTileLoading);
         this.appState.controls.showZoomButtons = this.loadUserSetting("showZoomButtons", this.appState.controls.showZoomButtons);
+        const zoomToCursor = this.loadUserSetting("zoomToCursor", true);
+        this.appState.controls.zoomToCursor = typeof zoomToCursor === "boolean" ? zoomToCursor : true;
         this.updateControlsSettings();
         this.setTheme(this.loadUserSetting("theme", this.appState.theme));
         this.setScreenshotClipboard(this.loadUserSetting("screenshotClipboard", this.appState.screenshot.clipboard));
@@ -730,6 +734,7 @@ export class BlueMapApp {
         this.saveUserSetting("invertMouse", this.appState.controls.invertMouse);
         this.saveUserSetting("pauseTileLoading", this.appState.controls.pauseTileLoading);
         this.saveUserSetting("showZoomButtons", this.appState.controls.showZoomButtons);
+        this.saveUserSetting("zoomToCursor", this.appState.controls.zoomToCursor);
         this.saveUserSetting("theme", this.appState.theme);
         this.saveUserSetting("screenshotClipboard", this.appState.screenshot.clipboard);
         this.saveUserSetting("lang", i18n.locale.value);

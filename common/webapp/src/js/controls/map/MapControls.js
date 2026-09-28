@@ -147,6 +147,20 @@ export class MapControls {
      * @param map {Map}
      */
     update(delta, map) {
+        // Other gestures retain their usual center/pan behavior, including their residual inertia.
+        if (this.data.followingPlayer || this.mouseMove.moving || this.mouseMove.deltaPosition.lengthSq() !== 0 ||
+            this.touchMove.moving || this.touchMove.deltaPosition.lengthSq() !== 0 ||
+            this.keyMove.up || this.keyMove.down || this.keyMove.left || this.keyMove.right ||
+            this.keyMove.deltaPosition.lengthSq() !== 0 || this.mouseRotate.moving || this.mouseRotate.deltaRotation !== 0 ||
+            this.touchRotate.moving || this.touchRotate.deltaRotation !== 0 ||
+            this.keyRotate.left || this.keyRotate.right || this.keyRotate.deltaRotation !== 0 ||
+            this.mouseAngle.moving || this.mouseAngle.deltaAngle !== 0 ||
+            this.touchAngle.moving || this.touchAngle.deltaAngle !== 0 ||
+            this.keyAngle.up || this.keyAngle.down || this.keyAngle.deltaAngle !== 0 ||
+            this.keyZoom.in || this.keyZoom.out || this.keyZoom.deltaZoom !== 0 ||
+            this.touchZoom.moving || this.touchZoom.deltaZoom !== 1) {
+            this.mouseZoom.clearAnchor();
+        }
         this.manager.position.y = -10000; // reset target y position
 
         // move
@@ -211,6 +225,10 @@ export class MapControls {
         this.touchZoom.reset();
     }
 
+    adjustCamera() {
+        return this.mouseZoom.adjustCamera();
+    }
+
     static getMaxPerspectiveAngleForDistance(distance) {
         return MathUtils.clamp((1 - Math.pow(Math.max(distance - 5, 0.001) * 0.0005, 0.5)) * HALF_PI,0, HALF_PI)
     }
@@ -245,6 +263,7 @@ export class MapControls {
      * @param marker {object}
      */
     followPlayerMarker(marker) {
+        this.mouseZoom.clearAnchor();
         if (marker.isPlayerMarker) marker = marker.data;
         this.data.followingPlayer = marker;
     }

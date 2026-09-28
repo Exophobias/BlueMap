@@ -93,8 +93,6 @@ export class ControlsManager {
 		let valueChanged = this.isValueChanged();
 
 		if (valueChanged) {
-			this.resetValueChanged();
-
 			// wrap rotation
 			while (this.rotation >= Math.PI) this.rotation -= Math.PI * 2;
 			while (this.rotation <= -Math.PI) this.rotation += Math.PI * 2;
@@ -137,6 +135,10 @@ export class ControlsManager {
 				this.camera.near = 1;
 				this.camera.far = 100000;
 			}
+
+			// Correct wheel zoom after the complete pose, once, before observers and area tracking.
+			this._controls?.adjustCamera?.();
+			this.resetValueChanged();
 
 			// event
 			dispatchEvent(this.mapViewer.events, "bluemapCameraMoved", {

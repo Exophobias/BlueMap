@@ -30,6 +30,7 @@ export default {
     zoom(delta) {
       let mouseZoom = this.$bluemap.mapViewer.controlsManager.controls?.mouseZoom;
       if (mouseZoom) {
+        mouseZoom.clearAnchor();
         mouseZoom.deltaZoom += delta;
       }
     }

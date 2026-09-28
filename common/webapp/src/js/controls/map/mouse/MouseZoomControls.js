@@ -25,6 +25,7 @@
 
 import {MathUtils} from "three";
 import {MapControls} from "../MapControls";
+import {CursorZoomAnchor} from "./CursorZoomAnchor";
 
 export class MouseZoomControls {
 
@@ -41,6 +42,9 @@ export class MouseZoomControls {
         this.speed = speed;
 
         this.deltaZoom = 0;
+        this.cursorAnchor = new CursorZoomAnchor(target);
+        this.cameraUpdated = false;
+        this._zoomToCursor = true;
     }
 
     /**
@@ -50,10 +54,13 @@ export class MouseZoomControls {
         this.manager = manager;
 
         this.target.addEventListener("wheel", this.onMouseWheel, {passive: false});
+        this.target.addEventListener("mousedown", this.clearAnchor);
     }
 
     stop() {
         this.target.removeEventListener("wheel", this.onMouseWheel);
+        this.target.removeEventListener("mousedown", this.clearAnchor);
+        this.reset();
     }
 
     /**
@@ -61,12 +68,23 @@ export class MouseZoomControls {
      * @param map {Map}
      */
     update(delta, map) {
-        if (this.deltaZoom === 0) return;
+        if (this.deltaZoom === 0) {
+            // Retain the point until the distance and terrain-height springs finish settling.
+            if (!this.cameraUpdated && !this.settlingDistanceLimit()) this.clearAnchor();
+            this.cameraUpdated = false;
+            return;
+        }
+        this.cameraUpdated = false;
 
         let smoothing = this.stiffness / (16.666 / delta);
         smoothing = MathUtils.clamp(smoothing, 0, 1);
 
-        this.manager.distance *= Math.pow(1.5, this.deltaZoom * smoothing * this.speed);
+        const distance = this.manager.distance * Math.pow(1.5, this.deltaZoom * smoothing * this.speed);
+        if (!Number.isFinite(distance) || distance <= 0) {
+            this.reset();
+            return;
+        }
+        this.manager.distance = distance;
         this.manager.angle = Math.min(this.manager.angle, MapControls.getMaxPerspectiveAngleForDistance(this.manager.distance));
 
         this.deltaZoom *= 1 - smoothing;
@@ -77,6 +95,32 @@ export class MouseZoomControls {
 
     reset() {
         this.deltaZoom = 0;
+        this.clearAnchor();
+    }
+
+    clearAnchor = () => {
+        this.cursorAnchor.clear();
+        this.cameraUpdated = false;
+    };
+
+    adjustCamera() {
+        this.cameraUpdated = this.cursorAnchor.anchor !== null;
+        return this.cursorAnchor.adjust(this.manager);
+    }
+
+    get zoomToCursor() {
+        return this._zoomToCursor;
+    }
+
+    set zoomToCursor(enabled) {
+        this._zoomToCursor = enabled !== false;
+        if (!this._zoomToCursor) this.clearAnchor();
+    }
+
+    settlingDistanceLimit() {
+        const controls = this.manager?.controls;
+        return controls && (this.manager.distance < controls.minDistance - 0.0000001 ||
+            this.manager.distance > controls.maxDistance + 0.0000001);
     }
 
     /**
@@ -90,6 +134,11 @@ export class MouseZoomControls {
         if (evt.deltaMode === WheelEvent.DOM_DELTA_PIXEL) delta *= 0.01;
         if (evt.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= 0.33;
 
+        if (!Number.isFinite(delta) || delta === 0 || !Number.isFinite(this.deltaZoom + delta)) return;
+        if (this.zoomToCursor && this.cursorAnchor.capture(this.manager, evt.clientX, evt.clientY,
+            this.deltaZoom !== 0 || this.cameraUpdated || this.settlingDistanceLimit())) {
+            this.manager.controls?.stopFollowingPlayerMarker?.();
+        }
         this.deltaZoom += delta;
     }
 
