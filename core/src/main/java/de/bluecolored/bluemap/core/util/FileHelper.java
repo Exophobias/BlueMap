@@ -24,7 +24,7 @@
  */
 package de.bluecolored.bluemap.core.util;
 
-import de.bluecolored.bluemap.core.util.stream.OnCloseOutputStream;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -43,27 +43,26 @@ import java.util.stream.StreamSupport;
 public class FileHelper {
 
     /**
-     * Creates an OutputStream that writes to a ".filepart"-file first and then atomically moves (overwrites) to the final target atomically
-     * once the stream gets closed.
-     */
-    public static OutputStream createFilepartOutputStream(final Path file) throws IOException {
-        Path folder = file.toAbsolutePath().normalize().getParent();
-        final Path partFile = folder.resolve(file.getFileName() + ".filepart");
-        FileHelper.createDirectories(folder);
-        OutputStream os = Files.newOutputStream(partFile, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-        return new OnCloseOutputStream(os, () -> {
-            if (!Files.exists(partFile)) return;
-            FileHelper.createDirectories(folder);
-            FileHelper.atomicMove(partFile, file);
-        });
-    }
-
-    /**
-     * Tries to move the file atomically, but fallbacks to a normal move operation if moving atomically fails
+     * Tries to move the file atomically, but fallbacks to a normal move operation if moving atomically fails.
+     * If the atomic move operation fails, it is retried at most 5 times, before falling back to a normal move.
      */
     public static void atomicMove(Path from, Path to) throws IOException {
         try {
-            Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            for (int attempt = 0; ; attempt++) {
+                try {
+                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                    return;
+                } catch (AccessDeniedException ex) {
+                    if (attempt >= 5) throw ex;
+                    try {
+                        //noinspection BusyWait
+                        Thread.sleep(20L << attempt);
+                    } catch (InterruptedException interruptedEx) {
+                        Thread.currentThread().interrupt();
+                        throw ex;
+                    }
+                }
+            }
         } catch (FileNotFoundException | NoSuchFileException ignore) {
         } catch (IOException ex) {
             try {
@@ -121,23 +120,42 @@ public class FileHelper {
     }
 
     /**
-     * Uses file-watchers on the path-parent to wait until a specific file or folder exists
+     * Uses file-watchers on the path-parent and manual checks on an interval as a fallback to wait until a specific file or folder exists
      */
-    public static boolean awaitExistence(Path path, long timeout, TimeUnit unit) throws IOException, InterruptedException {
-        if (Files.exists(path)) return true;
+    public static boolean awaitExistence(
+            Path path,
+            long checkInterval, TimeUnit checkIntervalUnit,
+            long timeout, TimeUnit timeoutUnit
+    ) throws IOException, InterruptedException {
+        if (checkInterval <= 0) throw new IllegalArgumentException("checkInterval must be positive");
 
-        long endTime = System.currentTimeMillis() + unit.toMillis(timeout);
+        long checkIntervalMillis = Math.max(checkIntervalUnit.toMillis(checkInterval), 1);
+        long endTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime()) + timeoutUnit.toMillis(timeout);
+        return awaitExistence(path, checkIntervalMillis, endTime);
+    }
+
+    private static boolean awaitExistence(Path path, long checkIntervalMillis, long endTime) throws IOException, InterruptedException {
+        if (Files.exists(path)) return true;
 
         Path parent = path.toAbsolutePath().normalize().getParent();
         if (parent == null) throw new IOException("No parent directory exists that can be watched.");
-        if (!awaitExistence(parent, timeout, unit)) return false;
+        if (!awaitExistence(parent, checkIntervalMillis, endTime)) return false;
 
-        try (WatchService watchService = parent.getFileSystem().newWatchService()) {
-            parent.register(watchService, StandardWatchEventKinds.ENTRY_CREATE);
+        try (WatchService watchService = createWatchService(parent)) {
             while (!Files.exists(path)) {
-                long now = System.currentTimeMillis();
+                long now = TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
                 if (now >= endTime) return false;
-                WatchKey key = watchService.poll(endTime - now, TimeUnit.MILLISECONDS);
+
+                // check manually at set interval, in case file-watchers don't work
+                long waitTime = Math.clamp(endTime - now, 1, checkIntervalMillis);
+
+                if (watchService == null) {
+                    //noinspection BusyWait
+                    Thread.sleep(waitTime);
+                    continue;
+                }
+
+                WatchKey key = watchService.poll(waitTime, TimeUnit.MILLISECONDS);
                 if (key != null) {
                     key.pollEvents();
                     key.reset();
@@ -171,6 +189,25 @@ public class FileHelper {
      */
     public static Stream<Path> walk(Path start, FileVisitOption... options) throws IOException {
         return walk(start, Integer.MAX_VALUE, options);
+    }
+
+    private static @Nullable WatchService createWatchService(Path dir) throws IOException {
+        WatchService watchService;
+        try {
+            watchService = dir.getFileSystem().newWatchService();
+        } catch (UnsupportedOperationException ex) {
+            return null;
+        }
+        try {
+            dir.register(watchService, StandardWatchEventKinds.ENTRY_CREATE);
+            return watchService;
+        } catch (UnsupportedOperationException ex) {
+            watchService.close();
+            return null;
+        } catch (IOException | RuntimeException ex) {
+            watchService.close();
+            throw ex;
+        }
     }
 
 }

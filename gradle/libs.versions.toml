@@ -17,7 +17,7 @@ bluenbt = { module = "de.bluecolored:bluenbt", version = "3.5.1" }
 brigadier = { module = "com.mojang:brigadier", version = "1.0.17" }
 bstats-bukkit = { module = "org.bstats:bstats-bukkit", version.ref = "bstats" }
 bstats-sponge = { module = "org.bstats:bstats-sponge", version.ref = "bstats" }
-caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version = "3.2.4" }
+caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version = "3.3.0" }
 commons-cli = { module = "commons-cli:commons-cli", version = "1.11.0" }
 commons-dbcp2 = { module = "org.apache.commons:commons-dbcp2", version = "2.14.0" }
 configurate-hocon = { module = "org.spongepowered:configurate-hocon", version.ref = "configurate" }
@@ -44,11 +44,11 @@ jarjar = { id = "net.minecraftforge.jarjar", version = "0.2.3" }
 loom = { id = "net.fabricmc.fabric-loom", version = "1.17-SNAPSHOT" }
 minotaur = { id = "com.modrinth.minotaur", version = "2.10.0" }
 node-gradle = { id = "com.github.node-gradle.node", version = "7.1.0" }
-neoforge-gradle = { id = "net.neoforged.moddev", version = "2.0.147" }
+neoforge-gradle = { id = "net.neoforged.moddev", version = "2.0.148" }
 shadow = { id = "com.gradleup.shadow", version = "9.6.1" }
 sponge-plugin = { id = "org.spongepowered.gradle.plugin", version.ref = "spongegradle" }
 sponge-ore = { id = "org.spongepowered.gradle.ore", version.ref = "spongegradle" }
-spotless = { id = "com.diffplug.spotless", version = "8.10.2" }
+spotless = { id = "com.diffplug.spotless", version = "8.10.3" }
 
 [bundles]
 junit-runtime = [ "junit-platform-launcher", "junit-vintage-engine", "junit-jupiter-engine" ]

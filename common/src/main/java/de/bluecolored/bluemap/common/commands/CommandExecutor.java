@@ -48,11 +48,10 @@ public class CommandExecutor {
     public ExecutionResult execute(ParseResult<CommandSource, Object> parseResult) {
         if (parseResult.getMatches().isEmpty()) {
 
-            // check if the plugin is not loaded first
-            if (!Commands.checkPluginLoaded(plugin, parseResult.getContext()))
-                return new ExecutionResult(0, false);
-
-            return new ExecutionResult(0, true);
+            parseResult.getContext().sendMessage(text("Unknown command.").color(NEGATIVE_COLOR));
+            parseResult.getContext().sendMessage(de.bluecolored.bluemap.common.commands.commands.HelpCommand.show(
+                    parseResult.getContext(), "1"));
+            return new ExecutionResult(0, false);
         }
 
         ParseMatch<CommandSource, Object> match = parseResult.getMatches().stream()

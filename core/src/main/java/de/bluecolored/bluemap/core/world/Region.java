@@ -62,6 +62,17 @@ public interface Region<T> {
      */
     void iterateAllChunks(ChunkConsumer<T> consumer) throws IOException;
 
+    /**
+     * Computes a fingerprint of the current state of this region, which can be used to detect changes to the region.<br>
+     * If the region changes, the fingerprint is expected to change as well (but is not guaranteed).
+     * Otherwise, the fingerprint should stay the same.<br>
+     * The default implementation always returns 0.
+     * @throws IOException if an IOException occurred trying to read the region
+     */
+    default long fingerprint() throws IOException {
+        return 0;
+    }
+
     T emptyChunk();
 
     boolean exists();

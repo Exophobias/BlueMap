@@ -43,6 +43,7 @@ import java.io.OutputStream;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 abstract class CellStorage<T extends CellStorage.Cell> {
 
@@ -99,10 +100,12 @@ abstract class CellStorage<T extends CellStorage.Cell> {
     }
 
     void forEach(CellConsumer<T> consumer) throws IOException {
-        storage.stream().forEach(sc -> {
-            Vector2i cellPos = new Vector2i(sc.getX(), sc.getZ());
-            consumer.accept(cellPos, cell(cellPos));
-        });
+        try (Stream<GridStorage.Cell> storageCells = storage.stream()) {
+            storageCells.forEach(sc -> {
+                Vector2i cellPos = new Vector2i(sc.getX(), sc.getZ());
+                consumer.accept(cellPos, cell(cellPos));
+            });
+        }
     }
 
     private synchronized T loadCell(Vector2i pos) {
@@ -133,8 +136,8 @@ abstract class CellStorage<T extends CellStorage.Cell> {
     private synchronized void saveCell(Vector2i pos, T cell) {
         if (!cell.isModified()) return;
         cell.setModified(false);
-        try (OutputStream in = storage.write(pos.getX(), pos.getY())) {
-            BLUE_NBT.write(cell, in, type);
+        try {
+            storage.write(pos.getX(), pos.getY(), (OutputStream out) -> BLUE_NBT.write(cell, out, type));
         } catch (IOException ex) {
             cell.setModified(true);
             Logger.global.logError("Failed to save render-state cell " + pos, ex);

@@ -25,15 +25,13 @@
 package de.bluecolored.bluemap.common.web;
 
 import de.bluecolored.bluemap.api.ContentTypeRegistry;
-import de.bluecolored.bluemap.common.web.http.HttpRequest;
-import de.bluecolored.bluemap.common.web.http.HttpRequestHandler;
-import de.bluecolored.bluemap.common.web.http.HttpResponse;
-import de.bluecolored.bluemap.common.web.http.HttpStatusCode;
+import de.bluecolored.bluemap.common.web.http.*;
 import de.bluecolored.bluemap.core.logger.Logger;
 import de.bluecolored.bluemap.core.storage.GridStorage;
 import de.bluecolored.bluemap.core.storage.MapStorage;
 import de.bluecolored.bluemap.core.storage.compression.CompressedInputStream;
 import de.bluecolored.bluemap.core.storage.compression.Compression;
+import de.bluecolored.bluemap.core.util.stream.StreamUtil;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +39,6 @@ import lombok.Setter;
 
 import java.io.*;
 import java.util.NoSuchElementException;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,17 +53,14 @@ public class MapStorageRequestHandler implements HttpRequestHandler {
     @Override
     public HttpResponse handle(HttpRequest request) {
         String path = request.getPath();
-        boolean requestGzipped = false;
 
         //normalize path
         if (path.startsWith("/")) path = path.substring(1);
         if (path.endsWith("/")) path = path.substring(0, path.length() - 1);
 
         //provide compressed if requested
-        if (path.endsWith(".gz")) {
-            path = path.substring(0, path.length() - 3);
-            requestGzipped = true;
-        }
+        boolean requestGzipped = path.endsWith(".gz");
+        if (requestGzipped) path = path.substring(0, path.length() - 3);
 
         try {
 
@@ -85,8 +79,7 @@ public class MapStorageRequestHandler implements HttpRequestHandler {
                 if (lod == 0) response.setHeader("Content-Type", "application/octet-stream");
                 else response.setHeader("Content-Type", "image/png");
 
-                writeToResponse(in, response, request, requestGzipped);
-                return response;
+                return StreamUtil.closeOnError(in, data -> writeToResponse(data, response, request, requestGzipped));
             }
 
             // provide meta-data
@@ -100,8 +93,7 @@ public class MapStorageRequestHandler implements HttpRequestHandler {
             if (in != null){
                 HttpResponse response = new HttpResponse(HttpStatusCode.OK);
                 response.setHeader("Content-Type", ContentTypeRegistry.fromFileName(path));
-                writeToResponse(in, response, request, requestGzipped);
-                return response;
+                return StreamUtil.closeOnError(in, data -> writeToResponse(data, response, request, requestGzipped));
             }
 
         } catch (NumberFormatException | NoSuchElementException ignore){
@@ -113,19 +105,18 @@ public class MapStorageRequestHandler implements HttpRequestHandler {
         return new HttpResponse(HttpStatusCode.NOT_FOUND);
     }
 
-    private void writeToResponse(CompressedInputStream data, HttpResponse response, HttpRequest request, boolean requestGzipped) throws IOException {
+    private static HttpResponse writeToResponse(CompressedInputStream data, HttpResponse response, HttpRequest request, boolean requestGzipped) throws IOException {
         Compression compression = data.getCompression();
         if (!requestGzipped) {
             if (
-                    compression != Compression.NONE &&
-                            request.hasHeaderValue("Accept-Encoding", compression.getId())
+                    compression != Compression.NONE && acceptsEncoding(request, compression.getId())
             ) {
                 response.setHeader("Content-Encoding", compression.getId());
                 response.setBody(data);
             } else if (
                     compression != Compression.GZIP &&
-                            !response.hasHeaderValue("Content-Type", "image/png") &&
-                            request.hasHeaderValue("Accept-Encoding", Compression.GZIP.getId())
+                    !response.hasHeaderValue("Content-Type", "image/png") &&
+                    acceptsEncoding(request, Compression.GZIP.getId())
             ) {
                 response.setHeader("Content-Encoding", Compression.GZIP.getId());
                 ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
@@ -149,6 +140,36 @@ public class MapStorageRequestHandler implements HttpRequestHandler {
                 response.setBody(new ByteArrayInputStream(compressedData));
             }
         }
+        return response;
+    }
+
+    private static boolean acceptsEncoding(HttpHeaderCarrier headerCarrier, String encoding) {
+        HttpHeader header = headerCarrier.getHeader("Accept-Encoding");
+        if (header == null) return false;
+
+        boolean wildcardAccepted = false;
+        for (String value : header.getValues()) {
+            String[] parts = value.split(";");
+            String coding = parts[0].trim();
+
+            if (coding.equalsIgnoreCase(encoding)) return parseQuality(parts, 1) > 0f;
+            if (coding.equals("*")) wildcardAccepted = parseQuality(parts, 1) > 0f;
+        }
+
+        return wildcardAccepted;
+    }
+
+    private static float parseQuality(String[] params, int offset) {
+        for (int i = offset; i < params.length; i++) {
+            String param = params[i].trim();
+            if (param.length() < 2 || !param.regionMatches(true, 0, "q=", 0, 2)) continue;
+            try {
+                return Float.parseFloat(param.substring(2).trim());
+            } catch (NumberFormatException ex) {
+                return 0f;
+            }
+        }
+        return 1f;
     }
 
 }

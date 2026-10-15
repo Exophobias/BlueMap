@@ -62,6 +62,7 @@ import de.bluecolored.bluemap.core.util.Key;
 import de.bluecolored.bluemap.core.util.Tristate;
 import de.bluecolored.bluemap.core.util.nbt.LenientListAdapter;
 import de.bluecolored.bluemap.core.util.nbt.RegistryAdapter;
+import de.bluecolored.bluemap.core.util.stream.FilepartTransaction;
 import de.bluecolored.bluemap.core.world.World;
 import de.bluecolored.bluenbt.BlueNBT;
 import de.bluecolored.bluenbt.TypeToken;
@@ -71,7 +72,9 @@ import org.jetbrains.annotations.Nullable;
 import org.spongepowered.configurate.gson.GsonConfigurationLoader;
 import org.spongepowered.configurate.serialize.SerializationException;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Writer;
 import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -578,8 +581,9 @@ public class Plugin implements ServerEventListener {
             Path file = blueMap.getConfig().getCoreConfig().getData().resolve("tasks.dat");
             TasksData tasksData = new TasksData();
             tasksData.setRenderTasks(renderManager.getScheduledRenderTasks());
-            try (OutputStream out = FileHelper.createFilepartOutputStream(file)) {
-                blueNBT.write(tasksData, out, new TypeToken<>() {});
+            try (FilepartTransaction transaction = FilepartTransaction.create(file)) {
+                blueNBT.write(tasksData, transaction.out(), new TypeToken<>() {});
+                transaction.commit();
             } catch (Exception ex) {
                 Logger.global.logError("Failed to save tasks.dat!", ex);
             }
@@ -641,11 +645,8 @@ public class Plugin implements ServerEventListener {
                     livePlayerInfoTransformer,
                     blueMap.getConfig().getPluginConfig().isHideDifferentWorld()
             );
-            try (
-                    OutputStream out = map.getStorage().players().write();
-                    Writer writer = new OutputStreamWriter(out)
-            ) {
-                writer.write(dataSupplier.get());
+            try {
+                map.getStorage().players().write((Writer writer) -> writer.write(dataSupplier.get()));
             } catch (Exception ex) {
                 Logger.global.logError("Failed to save players for map '" + map.getId() + "'!", ex);
             }
@@ -664,6 +665,7 @@ public class Plugin implements ServerEventListener {
                     .lastFullUpdate(pluginState.getMapState(map).getLastFullUpdate())
                     .fullUpdateInterval(blueMap.getConfig().getCoreConfig().getFullUpdateInterval())
                     .regionUpdateCooldown(blueMap.getConfig().getCoreConfig().getUpdateCooldown())
+                    .regionCheckInterval(blueMap.getConfig().getCoreConfig().getRegionFileCheckInterval())
                     .onFullUpdate(instant -> pluginState.getMapState(map).setLastFullUpdate(instant))
                     .build();
             watcher.start();

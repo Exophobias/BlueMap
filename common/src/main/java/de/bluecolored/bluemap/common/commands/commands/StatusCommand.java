@@ -49,7 +49,7 @@ public class StatusCommand {
 
     private final Plugin plugin;
 
-    @Command("")
+    @Command("status")
     @Permission("bluemap.status")
     public Component status() {
         Status status = new Status();

@@ -30,6 +30,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import de.bluecolored.bluemap.api.gson.MarkerGson;
 import de.bluecolored.bluemap.api.markers.MarkerSet;
+import de.bluecolored.bluemap.core.BlueMap;
 import de.bluecolored.bluemap.core.logger.Logger;
 import de.bluecolored.bluemap.core.map.hires.HiresModelManager;
 import de.bluecolored.bluemap.core.map.lowres.LowresTileManager;
@@ -45,15 +46,21 @@ import de.bluecolored.bluemap.core.world.World;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
+import org.jetbrains.annotations.Nullable;
 
-import java.io.*;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Writer;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 @Getter
 public class BmMap {
+
+    private static final long SAVE_DEBOUNCE_MILLIS = 15_000;
 
     private static final Gson GSON = ResourcesGson.addAdapter(new GsonBuilder())
             .setFieldNamingPolicy(FieldNamingPolicy.IDENTITY)
@@ -82,7 +89,7 @@ public class BmMap {
 
     @Getter(AccessLevel.NONE) private long renderTimeSumNanos;
     @Getter(AccessLevel.NONE) private long tilesRendered;
-    @Getter(AccessLevel.NONE) private long lastSaveTime;
+    @Getter(AccessLevel.NONE) private @Nullable ScheduledFuture<?> scheduledSave;
 
     public BmMap(String id, String name, World world, MapStorage storage, ResourcePack resourcePack, MapSettings settings) throws IOException, InterruptedException {
         this.id = Objects.requireNonNull(id);
@@ -126,7 +133,7 @@ public class BmMap {
 
         this.renderTimeSumNanos = 0;
         this.tilesRendered = 0;
-        this.lastSaveTime = -1;
+        this.scheduledSave = null;
 
         saveMapSettings();
         savePlayerState();
@@ -150,16 +157,28 @@ public class BmMap {
         hiresModelManager.unrender(tile, lowresTileManager);
     }
 
-    public synchronized boolean save(long minTimeSinceLastSave) {
-        long now = System.currentTimeMillis();
-        if (now - lastSaveTime < minTimeSinceLastSave)
-            return false;
-
-        save();
-        return true;
+    public synchronized void saveDebounced() {
+        if (scheduledSave != null) return;
+        scheduledSave = BlueMap.SCHEDULER.schedule(() -> {
+            try {
+                synchronized (this) {
+                    scheduledSave = null;
+                    if (storage.isClosed()) return;
+                    save();
+                }
+            } catch (Exception ex) {
+                Logger.global.logError("Failed to save map '" + getId() + "'!", ex);
+            }
+        }, SAVE_DEBOUNCE_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     public synchronized void save() {
+        // this save makes a pending debounced save obsolete
+        if (scheduledSave != null) {
+            scheduledSave.cancel(false);
+            scheduledSave = null;
+        }
+
         lowresTileManager.save();
         mapTileState.save();
         mapChunkState.save();
@@ -169,13 +188,10 @@ public class BmMap {
 
         // only save texture gallery if not present in storage
         try {
-            if (!storage.textures().exists())
-                saveTextureGallery();
-        } catch (IOException e) {
+            if (!storage.textures().exists()) saveTextureGallery();
+        } catch (Exception e) {
             Logger.global.logError("Failed to read texture gallery for map '" + getId() + "'!", e);
         }
-
-        lastSaveTime = System.currentTimeMillis();
     }
 
     private TextureGallery loadTextureGallery() throws IOException {
@@ -185,7 +201,7 @@ public class BmMap {
                     return TextureGallery.readTexturesFile(in);
                 }
             }
-        } catch (IOException ex) {
+        } catch (Exception ex) {
             Logger.global.logError("Failed to load textures for map '" + getId() + "'!", ex);
         }
 
@@ -193,9 +209,9 @@ public class BmMap {
     }
 
     private void saveTextureGallery() {
-        try (OutputStream out = storage.textures().write()) {
-            this.textureGallery.writeTexturesFile(out);
-        } catch (IOException ex) {
+        try {
+            storage.textures().write(this.textureGallery::writeTexturesFile);
+        } catch (Exception ex) {
             Logger.global.logError("Failed to save textures for map '" + getId() + "'!", ex);
         }
     }
@@ -206,32 +222,26 @@ public class BmMap {
     }
 
     private void saveMapSettings() {
-        try (
-                OutputStream out = storage.settings().write();
-                Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)
-        ) {
-            GSON.toJson(this, writer);
+        try {
+            storage.settings().write((Writer writer) -> GSON.toJson(this, writer));
         } catch (Exception ex) {
             Logger.global.logError("Failed to save settings for map '" + getId() + "'!", ex);
         }
     }
 
     public synchronized void saveMarkerState() {
-        try (
-                OutputStream out = storage.markers().write();
-                Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)
-        ) {
-            MarkerGson.INSTANCE.toJson(this.markerSets, writer);
+        try {
+            storage.markers().write((Writer writer) -> MarkerGson.INSTANCE.toJson(this.markerSets, writer));
         } catch (Exception ex) {
             Logger.global.logError("Failed to save markers for map '" + getId() + "'!", ex);
         }
     }
 
     public synchronized void savePlayerState() {
-        try (OutputStream out = storage.players().write()) {
-            out.write("{}".getBytes(StandardCharsets.UTF_8));
+        try {
+            storage.players().write((Writer writer) -> writer.write("{}"));
         } catch (Exception ex) {
-            Logger.global.logError("Failed to save markers for map '" + getId() + "'!", ex);
+            Logger.global.logError("Failed to save player state for map '" + getId() + "'!", ex);
         }
     }
 

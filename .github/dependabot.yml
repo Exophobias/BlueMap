@@ -4,6 +4,8 @@ updates:
 
   - package-ecosystem: "gradle"
     directory: "/"
+    exclude-paths:
+      - "api/**"
     schedule:
       interval: "weekly"
     allow:
@@ -64,6 +66,11 @@ updates:
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "gitsubmodule"
     directory: "/"
     schedule:
       interval: "weekly"

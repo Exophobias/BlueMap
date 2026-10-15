@@ -59,6 +59,11 @@ public class CoreConfig {
         return Duration.ofMinutes(fullUpdateInterval);
     }
 
+    public Duration getRegionFileCheckInterval() {
+        // New operator settings require a separate versioned configuration adoption.
+        return Duration.ZERO;
+    }
+
     public int resolveRenderThreadCount() {
         if (renderThreadCount > 0) return renderThreadCount;
         return Math.max(Runtime.getRuntime().availableProcessors() + renderThreadCount, 1);
