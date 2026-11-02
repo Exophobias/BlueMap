@@ -25,6 +25,9 @@
 package de.bluecolored.bluemap.common.commands;
 import de.bluecolored.bluemap.common.commands.commands.HelpCommand;
 import de.bluecolored.bluemap.common.serverinterface.CommandSource;
+import de.bluecolored.bluemap.common.serverinterface.Server;
+import de.bluecolored.bluemap.common.plugin.Plugin;
+import java.lang.reflect.Proxy;
 import de.bluecolored.bluecommands.ParseResult;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -59,10 +62,17 @@ class HelpCommandTest {
     }
     @Test void parserIndependentlyRejectsDeniedExecutionAndUnknownPrintsHelp() {
         var source = new Source("bluemap.help");
-        var tree = Commands.create(null);
-        assertTrue(tree.parse(source, "bluemap stop").getMatches().isEmpty());
+        // Parsing may evaluate world predicates before permission predicates in any order.
+        var server = (Server) Proxy.newProxyInstance(Server.class.getClassLoader(), new Class<?>[]{Server.class},
+                (proxy, method, args) -> { throw new AssertionError("Help parsing accessed server: " + method.getName()); });
+        var plugin = new Plugin("test", server);
+        assertFalse(plugin.isLoaded());
+        var tree = Commands.create(plugin);
+        for (String denied : List.of("stop", "update nowhere", "troubleshoot nowhere"))
+            assertTrue(tree.parse(source, "bluemap " + denied).getMatches().isEmpty(), denied);
+        assertFalse(tree.parse(new Source("bluemap.stop"), "bluemap stop").getMatches().isEmpty());
         assertFalse(tree.parse(source, "bluemap help").getMatches().isEmpty());
-        new CommandExecutor(null).execute(new ParseResult<>(source, "bluemap nonsense"));
+        new CommandExecutor(plugin).execute(new ParseResult<>(source, "bluemap nonsense"));
         assertEquals(2, source.output.size());
         assertTrue(plain(source.output.getFirst()).contains("Unknown"));
         assertTrue(plain(source.output.getLast()).contains("/bluemap help"));
